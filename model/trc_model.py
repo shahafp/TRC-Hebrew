@@ -13,12 +13,13 @@ class TRCModel(nn.Module):
         self.dropout = nn.Dropout()
         self.linear = nn.Linear(config.hidden_size * 2, output_size)
 
-    def forward(self, text,
+    def forward(self, input_ids,
                 entity_1, entity_2,
                 entity_mark_1_s,
                 entity_mark_2_s,
                 masks, marks_only=False, entity_and_marks=False):
-        outputs = self.model(text, attention_mask=masks, output_hidden_states=True)
+
+        outputs = self.model(input_ids, attention_mask=masks, output_hidden_states=True)
         predictions = outputs.last_hidden_state
 
         if marks_only or entity_and_marks:
