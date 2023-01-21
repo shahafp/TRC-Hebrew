@@ -1,7 +1,7 @@
 import pandas as pd
 from collections import Counter
 
-data = pd.read_csv('../INCEPTION/inception_round_1/single_tagger_round_1.csv')
+data = pd.read_csv('../hw_trc_dataset.csv')
 docs_df = [df for _, df in data.groupby('document_number')]
 
 train = docs_df[:int(0.87 * len(docs_df))]
