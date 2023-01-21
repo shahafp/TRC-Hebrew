@@ -15,18 +15,18 @@ class TRCModel(nn.Module):
         self.classification_layers = None
         if self.architecture == 'SEQ_CLS':
             self.classification_layers = nn.Sequential(
-                #nn.Dropout(),
+                # nn.Dropout(),
                 nn.Linear(config.hidden_size, output_size)
             )
         if self.architecture == 'EMP':
             self.e_1_linear = nn.Linear(config.hidden_size * 2, config.hidden_size)
             self.e_2_linear = nn.Linear(config.hidden_size * 2, config.hidden_size)
 
-        if self.architecture in ['ESS', 'EMP']:
+        if self.architecture in ['ESS', 'EF', 'EMP']:
             self.classification_layers = nn.Sequential(
-                #nn.Dropout(),
+                # nn.Dropout(),
                 nn.Linear(config.hidden_size * 2, config.hidden_size),
-                #nn.ReLU(),
+                # nn.ReLU(),
                 nn.Linear(config.hidden_size, output_size)
             )
 
@@ -51,13 +51,18 @@ class TRCModel(nn.Module):
             e1_start_mark_tensors = lm_outputs[torch.arange(lm_outputs.size(0)), entity_mark_1_s]
             e2_start_mark_tensors = lm_outputs[torch.arange(lm_outputs.size(0)), entity_mark_2_s]
 
+            e1_tensor = lm_outputs[torch.arange(lm_outputs.size(0)), entity_1]
+            e2_tensor = lm_outputs[torch.arange(lm_outputs.size(0)), entity_2]
+
             if self.architecture == 'ESS':
                 e_start_markers_cat = torch.cat((e1_start_mark_tensors, e2_start_mark_tensors), 1)
                 predictions = self.classification_layers(e_start_markers_cat)
-            if self.architecture == 'EMP':
-                e1_tensor = lm_outputs[torch.arange(lm_outputs.size(0)), entity_1]
-                e2_tensor = lm_outputs[torch.arange(lm_outputs.size(0)), entity_2]
 
+            if self.architecture == 'EF':
+                events_cat = torch.cat((e1_tensor, e2_tensor), 1)
+                predictions = self.classification_layers(events_cat)
+
+            if self.architecture == 'EMP':
                 e1_and_start_mark = self.e_1_linear(torch.cat((e1_start_mark_tensors, e1_tensor), 1))
                 e2_and_start_mark = self.e_2_linear(torch.cat((e2_start_mark_tensors, e2_tensor), 1))
                 both_e_cat = torch.cat((e1_and_start_mark, e2_and_start_mark), 1)
