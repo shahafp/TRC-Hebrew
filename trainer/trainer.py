@@ -33,6 +33,7 @@ class Trainer:
         return input_ids, entity_1, entity_2, em1_s, em2_s, attention_masks, label
 
     def full_pass_step(self, batch, mode='train'):
+        self.optimizer.zero_grad()
         input_ids, entity_1, entity_2, entity_mark_1_s, entity_mark_2_s, masks, labels = self.prepare_batch(batch)
 
         out = self.model(input_ids, entity_1, entity_2, entity_mark_1_s, entity_mark_2_s, masks)

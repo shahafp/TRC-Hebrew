@@ -48,14 +48,11 @@ class TRCModel(nn.Module):
             cls_token_feature_tensor = lm_outputs[:, 0, :]
             predictions = self.classification_layers(cls_token_feature_tensor)
         else:
-            e1_tensor = lm_outputs[torch.arange(lm_outputs.size(0)), entity_1]
-            e2_tensor = lm_outputs[torch.arange(lm_outputs.size(0)), entity_2]
-
             e1_start_mark_tensors = lm_outputs[torch.arange(lm_outputs.size(0)), entity_mark_1_s]
             e2_start_mark_tensors = lm_outputs[torch.arange(lm_outputs.size(0)), entity_mark_2_s]
 
             if self.architecture == 'ESS':
-                e_start_markers_cat = torch.cat((e1_tensor, e2_tensor), 1)
+                e_start_markers_cat = torch.cat((e1_start_mark_tensors, e2_start_mark_tensors), 1)
                 predictions = self.classification_layers(e_start_markers_cat)
             if self.architecture == 'EMP':
                 e1_tensor = lm_outputs[torch.arange(lm_outputs.size(0)), entity_1]
