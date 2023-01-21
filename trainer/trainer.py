@@ -140,7 +140,7 @@ class Trainer:
         # save_metrics(file_path, '/metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
         print('Finished Training!')
 
-    def evaluate(self, test_loader, print_report=False):
+    def evaluate(self, test_loader, ignore_vague=False, print_report=False):
         test_running_loss = 0.0
         self.model.eval()
         with torch.no_grad():
@@ -152,6 +152,8 @@ class Trainer:
                 predictions += [self.id_2_label[idx] for idx in torch.argmax(output, dim=1).tolist()]
                 true_labels += test_batch['label']
 
+            if ignore_vague:
+                true_labels = [p_l if t_l == 'VAGUE' else t_l for t_l, p_l in zip(true_labels, predictions)]
             report = classification_report(true_labels, predictions, zero_division=True, output_dict=True)
             if print_report:
                 print(classification_report(true_labels, predictions, zero_division=True))
