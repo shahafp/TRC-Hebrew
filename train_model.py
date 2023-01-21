@@ -20,6 +20,7 @@ print('device:', device)
 BATCH_SIZE = 4
 MODEL_CHECKPOINT = 'onlplab/alephbert-base'
 TRAINING_LAYERS = 52
+LABELS = ['BEFORE', 'AFTER', 'EQUAL', 'VAGUE']
 
 data_paths = {
     'train': 'data_handling/split_data/train.csv',
@@ -38,15 +39,15 @@ test_loader = DataLoader(test_set, batch_size=BATCH_SIZE)
 
 print(f'train: {len(train_set)}\ntest: {len(test_set)}')
 
-model = TRCModel(output_size=4, tokenizer=tokenizer, check_point=MODEL_CHECKPOINT)
+model = TRCModel(output_size=len(LABELS), tokenizer=tokenizer, check_point=MODEL_CHECKPOINT, architecture='ESS')
 
 trainer = Trainer(model, tokenizer=tokenizer,
                   optimizer=optim.Adam(get_parameters(model.named_parameters(), TRAINING_LAYERS), lr=1e-5),
                   criterion=nn.CrossEntropyLoss(),
-                  entity_markers = (E1_start,E2_start),
+                  entity_markers=(E1_start, E2_start),
+                  labels=LABELS,
                   device=device)
 
 trainer.train(train_loader=train_loader,
-              test_loader=test_loader,
-              num_epochs=10,
-              eval_step=0.5)
+              valid_loader=test_loader,
+              max_epochs=10)

@@ -8,9 +8,12 @@ import numpy as np
 
 def create_doc_id(doc_name):
     doc_name = doc_name.replace('.txt', '')
-    doc_name_parts = doc_name.split('_')
-    doc_number, window, pair = doc_name_parts[1], doc_name_parts[3], doc_name_parts[4]
-    return f'{doc_number}.{window}.{pair}'
+    try:
+        doc_name_parts = doc_name.split('_')
+        doc_number, window, pair = doc_name_parts[1], doc_name_parts[3], doc_name_parts[4]
+        return f'{doc_number}.{window}.{pair}'
+    except:
+        return doc_name
 
 
 def handle_json_file(doc, doc_id, dataset_dict, annotator_name):
@@ -24,14 +27,16 @@ def handle_json_file(doc, doc_id, dataset_dict, annotator_name):
             text = element.get('sofaString')
         if not label:
             label = element.get('Label')
-    doc_num, window_num, pair_num = doc_id.split('.')
-    dataset_dict['id'].append(doc_id)
-    dataset_dict['document_number'].append(doc_num)
-    dataset_dict['window_number'].append(window_num)
-    dataset_dict['pair_number'].append(pair_num)
-    dataset_dict['text'].append(text)
-    dataset_dict[annotator_name].append(label)
-    return dataset_dict
+    try:
+        doc_num, window_num, pair_num = doc_id.split('.')
+        dataset_dict['document_number'].append(doc_num)
+        dataset_dict['window_number'].append(window_num)
+        dataset_dict['pair_number'].append(pair_num)
+    finally:
+        dataset_dict['id'].append(doc_id)
+        dataset_dict['text'].append(text)
+        dataset_dict[annotator_name].append(label)
+        return dataset_dict
 
 
 def json_to_df(*docs):
@@ -65,11 +70,14 @@ def inception_to_csv(csv_file_path, inception_annotations_dir):
 
     all_data_df = pd.concat(all_data)
 
-    all_data_df = all_data_df.apply(lambda win: win if (win['shir'], win['hadar']) not in [('NONE', 'NONE'),
-                                                                                           ('NONE', np.nan),
-                                                                                           (np.nan, 'NONE'),
-                                                                                           (np.nan, np.nan)] else None,
-                                    axis=1).dropna(how='all')
+    all_data_df = all_data_df[all_data_df['shir'] !='NONE']
+    all_data_df = all_data_df[~all_data_df['shir'].isna()]
+
+    # all_data_df = all_data_df.apply(lambda win: win if (win['shir'], win['hadar']) not in [('NONE', 'NONE'),
+    #                                                                                        ('NONE', np.nan),
+    #                                                                                        (np.nan, 'NONE'),
+    #                                                                                        (np.nan, np.nan)] else None,
+    #                                 axis=1).dropna(how='all')
 
     all_data_df.to_csv(csv_file_path, index=False)
 
@@ -84,14 +92,18 @@ def split_to_multi_single_taggers(data_path, multi_path, single_path):
     single_tagger.to_csv(single_path, index=False)
 
     multiple_taggers = data[(~data['shir'].isna()) & (~data['hadar'].isna())]
-    multiple_taggers = multiple_taggers[(multiple_taggers['shir']!='NONE') & (multiple_taggers['hadar']!='NONE')]
+    multiple_taggers = multiple_taggers[(multiple_taggers['shir'] != 'NONE') & (multiple_taggers['hadar'] != 'NONE')]
     multiple_taggers.to_csv(multi_path, index=False)
 
 
 if __name__ == '__main__':
-    # inception_to_csv('inception_round_2/round2_data.csv', 'inception_round_2/annotation')
+    from collections import Counter
+    # inception_to_csv('INCEPTION/doctors/doctors_data.csv', 'INCEPTION/doctors/annotation')
+    doctors = pd.read_csv('INCEPTION/doctors/doctors_data.csv')
+    tags = doctors['shir'].tolist()
+    print()
 
-    split_to_multi_single_taggers('INCEPTION/inception_round_2/round2_data.csv',
-                                  'INCEPTION/inception_round_2/multi_tagger_round_2.csv',
-                                  'INCEPTION/inception_round_2/single_tagger_round_2.csv')
 
+    # split_to_multi_single_taggers('INCEPTION/inception_round_2/round2_data.csv',
+    #                               'INCEPTION/inception_round_2/multi_tagger_round_2.csv',
+    #                               'INCEPTION/inception_round_2/single_tagger_round_2.csv')
