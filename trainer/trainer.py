@@ -81,7 +81,7 @@ class Trainer:
               early_stopping_tolerance=5,
               early_stopping_min_delta=0):
 
-        print(self.model)
+        # print(self.model)
         # initialize running values
         running_loss = 0.0
         global_step = 0

@@ -25,9 +25,9 @@ class TRCModel(nn.Module):
         if self.architecture in ['ESS', 'EMP']:
             self.classification_layers = nn.Sequential(
                 #nn.Dropout(),
-                nn.Linear(config.hidden_size * 2, output_size),
+                nn.Linear(config.hidden_size * 2, config.hidden_size),
                 #nn.ReLU(),
-                # nn.Linear(config.hidden_size, output_size)
+                nn.Linear(config.hidden_size, output_size)
             )
 
     def forward(self,
