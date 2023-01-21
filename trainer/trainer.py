@@ -151,7 +151,7 @@ class Trainer:
                 predictions += [self.id_2_label[idx] for idx in torch.argmax(output, dim=1).tolist()]
                 true_labels += test_batch['label']
 
-            report = classification_report(true_labels, predictions, output_dict=True)
+            report = classification_report(true_labels, predictions, zero_division=True, output_dict=True)
             if print_report:
-                print(classification_report(true_labels, predictions))
+                print(classification_report(true_labels, predictions, zero_division=True))
         return test_running_loss, report

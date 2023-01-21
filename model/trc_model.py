@@ -15,7 +15,7 @@ class TRCModel(nn.Module):
         self.classification_layers = None
         if self.architecture == 'SEQ_CLS':
             self.classification_layers = nn.Sequential(
-                nn.Dropout(),
+                #nn.Dropout(),
                 nn.Linear(config.hidden_size, output_size)
             )
         if self.architecture == 'EMP':
@@ -24,9 +24,9 @@ class TRCModel(nn.Module):
 
         if self.architecture in ['ESS', 'EMP']:
             self.classification_layers = nn.Sequential(
-                nn.Dropout(),
+                #nn.Dropout(),
                 nn.Linear(config.hidden_size * 2, config.hidden_size),
-                nn.ReLU(),
+                #nn.ReLU(),
                 nn.Linear(config.hidden_size, output_size)
             )
 
