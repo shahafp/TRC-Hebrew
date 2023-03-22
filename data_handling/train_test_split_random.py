@@ -1,11 +1,11 @@
 import pandas as pd
 from collections import Counter
 
-data = pd.read_csv('../hw_trc_dataset.csv').sample(frac=1)
+data = pd.read_csv('../TRC_dataset.csv').sample(frac=1)
 
 docs_df = [df for _, df in data.groupby('document_number')]
 
-cat_train = data[:int(0.8 * len(data))]
+cat_train = data[:int(0.84 * len(data))]
 cat_test = data[len(cat_train):]
 
 split = len(cat_train) / len(data)

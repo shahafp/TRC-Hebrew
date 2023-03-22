@@ -44,33 +44,6 @@ class Trainer:
             self.optimizer.step()
         return loss, out
 
-    def train1(self, train_loader, test_loader, num_epochs, eval_step, best_valid_loss=float('inf')):
-        # initialize running values
-        running_loss = 0.0
-        valid_running_loss = 0.0
-        global_step = 0
-        train_loss_list = []
-        valid_loss_list = []
-        global_steps_list = []
-
-        # training loop
-        self.model.train()
-        self.model.to(self.device)
-        epoch_progress = tqdm(range(num_epochs))
-        tqdm_train_loader = tqdm(train_loader)
-        for epoch in range(num_epochs):
-
-            for batch in train_loader:
-                input_ids, entity_1, entity_2, entity_mark_1_s, entity_mark_2_s, masks, label = self.prepare_batch(
-                    batch)
-                loss, _ = self.forward_step(input_ids, entity_1, entity_2, entity_mark_1_s, entity_mark_2_s, masks,
-                                            label)
-                running_loss += loss.item()
-
-                tqdm_train_loader.update()
-            epoch_progress.update()
-            tqdm_train_loader.reset()
-
     def train(self,
               train_loader,
               valid_loader,
