@@ -1,10 +1,10 @@
 import pandas as pd
 from collections import Counter
 
-data = pd.read_csv('../hw_trc_dataset.csv')
+data = pd.read_csv('../TRC_dataset.csv')
 docs_df = [df for _, df in data.groupby('document_number')]
 
-train = docs_df[:int(0.87 * len(docs_df))]
+train = docs_df[:int(0.84 * len(docs_df))]
 test = docs_df[len(train):]
 
 cat_train = pd.concat(train, axis=0)
