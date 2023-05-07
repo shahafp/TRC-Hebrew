@@ -1,12 +1,18 @@
 import pandas as pd
 from collections import Counter
+import random
 
-data = pd.read_csv('../TRC_dataset.csv').sample(frac=1)
+data = pd.read_csv('../TRC_dataset.csv')
 
 docs_df = [df for _, df in data.groupby('document_number')]
+random.shuffle(docs_df)
 
-cat_train = data[:int(0.8 * len(data))]
-cat_test = data[len(cat_train):]
+train_docs = docs_df[:int(0.812*len(docs_df))]
+test_docs = docs_df[len(train_docs):]
+
+cat_train = pd.concat(train_docs,axis=0).sample(frac=1)
+cat_test = pd.concat(test_docs,axis=0)
+
 
 split = len(cat_train) / len(data)
 

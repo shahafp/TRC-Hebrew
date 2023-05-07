@@ -2,7 +2,7 @@ from typing import Optional, Tuple, Union
 
 import torch
 from torch import nn
-from torch.nn import CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
 from transformers import BertPreTrainedModel, BertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 
@@ -27,7 +27,7 @@ class TemporalRelationClassification(BertPreTrainedModel):
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
         self.dropout = nn.Dropout(classifier_dropout)
-        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
         self.classification_layers = None
         if self.architecture == 'SEQ_CLS':
             self.classification_layers = nn.Sequential(
@@ -87,23 +87,25 @@ class TemporalRelationClassification(BertPreTrainedModel):
             return_dict=return_dict,
         )
 
-        last_hidden_state = outputs.last_hidden_state
-
-        last_hidden_state = self.dropout(last_hidden_state)
-
         logits = None
         if self.architecture == 'SEQ_CLS':
-            cls_token_feature_tensor = last_hidden_state[:, 0, :]
-            logits = self.classification_layers(cls_token_feature_tensor)
+            pooled_output = outputs[1]
+
+            pooled_output = self.dropout(pooled_output)
+            logits = self.classification_layers(pooled_output)
         else:
+            sequence_output = outputs[0]
+
+            sequence_output = self.dropout(sequence_output)
+
             entity_mark_1_s, entity_1, entity_mark_2_s, entity_2 = self._get_entities_and_start_markers_indices(
                 input_ids)
 
-            e1_start_mark_tensors = last_hidden_state[torch.arange(last_hidden_state.size(0)), entity_mark_1_s]
-            e2_start_mark_tensors = last_hidden_state[torch.arange(last_hidden_state.size(0)), entity_mark_2_s]
+            e1_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_1_s]
+            e2_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_2_s]
 
-            e1_tensor = last_hidden_state[torch.arange(last_hidden_state.size(0)), entity_1]
-            e2_tensor = last_hidden_state[torch.arange(last_hidden_state.size(0)), entity_2]
+            e1_tensor = sequence_output[torch.arange(sequence_output.size(0)), entity_1]
+            e2_tensor = sequence_output[torch.arange(sequence_output.size(0)), entity_2]
 
             if self.architecture == 'ESS':
                 e_start_markers_cat = torch.cat((e1_start_mark_tensors, e2_start_mark_tensors), 1)
@@ -122,7 +124,7 @@ class TemporalRelationClassification(BertPreTrainedModel):
         loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()
-            loss = loss_fct(logits, labels)
+            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
         if not return_dict:
             output = (logits,) + outputs[2:]

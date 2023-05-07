@@ -13,7 +13,7 @@ class DatasetBuilder:
             data_df['named_label'] = data_df['label']
             data_df['label'] = data_df['label'].apply(lambda l: label2id[l])
             clean_data_df = data_df[['text', 'label', 'named_label']]
-            clean_data_df.to_csv(f'data_handling/clean_data/{split}.csv', index=False)
+            clean_data_df.to_csv(f'clean_data/{split}.csv', index=False)
             all_datasets[split] = Dataset.from_pandas(data_df[['text', 'label']])
         return all_datasets
 
@@ -28,3 +28,15 @@ class DatasetBuilder:
         for split, dataset in raw_datasets.items():
             tokenized_datasets[split] = dataset.map(cls.preprocess_function, batched=True)
         return tokenized_datasets
+
+
+if __name__ == '__main__':
+    DatasetBuilder.build(
+        {
+            'train': 'split_data/train.csv',
+            'test': 'split_data/test.csv'
+        },
+        {
+            'BEFORE': 0, 'EQUAL': 2, 'AFTER': 1, 'VAGUE': 3
+        }
+    )
