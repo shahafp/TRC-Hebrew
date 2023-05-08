@@ -3,13 +3,13 @@ from typing import Optional, Tuple, Union
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
-from transformers import BertPreTrainedModel, BertModel
+from transformers import BertPreTrainedModel, BertModel,BertForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 from trc_model.temporal_relation_classification_config import TemporalRelationClassificationConfig
 
 
-class TemporalRelationClassification(BertPreTrainedModel):
+class TemporalRelationClassification(BertForSequenceClassification):
     config_class = TemporalRelationClassificationConfig
 
     def __init__(self, config):
@@ -21,7 +21,6 @@ class TemporalRelationClassification(BertPreTrainedModel):
         self.config = config
 
         self.bert = BertModel(config)
-        self.bert.resize_token_embeddings(config.token_embeddings_size)
 
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
@@ -44,7 +43,7 @@ class TemporalRelationClassification(BertPreTrainedModel):
             )
 
         # Initialize weights and apply final processing
-        self.post_init()
+        # self.post_init()
 
     def _get_entities_and_start_markers_indices(self, input_ids):
         em1_s = torch.tensor([(ids == self.EMS1).nonzero().item() for ids in input_ids], device=self.device)
