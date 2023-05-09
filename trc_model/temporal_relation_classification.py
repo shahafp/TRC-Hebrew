@@ -9,7 +9,7 @@ from transformers.modeling_outputs import SequenceClassifierOutput
 from trc_model.temporal_relation_classification_config import TemporalRelationClassificationConfig
 
 
-class TemporalRelationClassification(BertForSequenceClassification):
+class TemporalRelationClassification(BertPreTrainedModel):
     config_class = TemporalRelationClassificationConfig
 
     def __init__(self, config):
@@ -21,8 +21,8 @@ class TemporalRelationClassification(BertForSequenceClassification):
         self.architecture = config.architecture
         self.config = config
 
-        self.bert = BertModel(config)
-
+        # self.bert = BertModel(config)
+        self.bert = BertModel.from_pretrained(config.name_or_path)
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
