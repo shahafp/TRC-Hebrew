@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Union
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
-from transformers import BertPreTrainedModel, BertModel,BertForSequenceClassification
+from transformers import BertPreTrainedModel, BertModel, BertForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 from trc_model.temporal_relation_classification_config import TemporalRelationClassificationConfig
@@ -15,6 +15,7 @@ class TemporalRelationClassification(BertForSequenceClassification):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
+        self.ES_ID = config.ES_ID
         self.EMS1 = config.EMS1
         self.EMS2 = config.EMS2
         self.architecture = config.architecture
@@ -46,12 +47,16 @@ class TemporalRelationClassification(BertForSequenceClassification):
         # self.post_init()
 
     def _get_entities_and_start_markers_indices(self, input_ids):
-        em1_s = torch.tensor([(ids == self.EMS1).nonzero().item() for ids in input_ids], device=self.device)
-        entity_1 = em1_s + 1
+        event_1_start, event_2_start = torch.tensor(
+            [(ids == self.ES_ID).nonzero().squeeze().tolist() for ids in input_ids]).T
+        return event_1_start, event_1_start + 1, event_2_start, event_2_start + 1
 
-        em2_s = torch.tensor([(ids == self.EMS2).nonzero().item() for ids in input_ids], device=self.device)
-        entity_2 = em2_s + 1
-        return em1_s, entity_1, em2_s, entity_2
+        # em1_s = torch.tensor([(ids == self.EMS1).nonzero().item() for ids in input_ids], device=self.device)
+        # entity_1 = em1_s + 1
+        #
+        # em2_s = torch.tensor([(ids == self.EMS2).nonzero().item() for ids in input_ids], device=self.device)
+        # entity_2 = em2_s + 1
+        # return em1_s, entity_1, em2_s, entity_2
 
     def forward(
             self,
