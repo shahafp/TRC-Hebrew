@@ -131,10 +131,10 @@ class TemporalRelationClassification(BertForSequenceClassification):
             e2_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_2_s]
 
             e1_tensor = torch.stack(
-                [torch.mean(sentence[entity_mark_1_s[i]: entity_mark_1_e[i]], dim=0, keepdim=True) for i, sentence in
+                [torch.max(sentence[entity_mark_1_s[i]: entity_mark_1_e[i]], dim=0, keepdim=True) for i, sentence in
                  enumerate(sequence_output)]).reshape(sequence_output.shape[0], -1).to(self.device)
             e2_tensor = torch.stack(
-                [torch.mean(sentence[entity_mark_2_s[i]: entity_mark_2_e[i]], dim=0, keepdim=True) for i, sentence in
+                [torch.max(sentence[entity_mark_2_s[i]: entity_mark_2_e[i]], dim=0, keepdim=True) for i, sentence in
                  enumerate(sequence_output)]).reshape(sequence_output.shape[0], -1).to(self.device)
 
             if self.pool_tokens:
