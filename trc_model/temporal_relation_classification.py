@@ -9,23 +9,49 @@ from transformers.modeling_outputs import SequenceClassifierOutput
 from trc_model.temporal_relation_classification_config import TemporalRelationClassificationConfig
 
 
-class TemporalRelationClassification(BertPreTrainedModel):
+class TokenPooler(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.activation = nn.Tanh()
+
+    def forward(self, token_tensor: torch.Tensor) -> torch.Tensor:
+        # We "pool" the model by simply taking the hidden state corresponding
+        # to the first token.
+        pooled_output = self.dense(token_tensor)
+        pooled_output = self.activation(pooled_output)
+        return pooled_output
+
+
+class TemporalRelationClassification(BertForSequenceClassification):
     config_class = TemporalRelationClassificationConfig
 
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
+        self.special_markers = config.special_markers
+        self.pool_tokens = config.pool_tokens
         self.ES_ID = config.ES_ID
         self.EMS1 = config.EMS1
         self.EMS2 = config.EMS2
+        self.EME1 = config.EME1
+        self.EME2 = config.EME2
         self.architecture = config.architecture
         self.config = config
 
-        # self.bert = BertModel(config)
-        self.bert = BertModel.from_pretrained(config.name_or_path)
+        self.bert = BertModel.from_pretrained(config.base_lm)
+        if self.bert.config.vocab_size != config.vocab_size:
+            self.bert.resize_token_embeddings(config.vocab_size)
+
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
+        if config.pool_tokens:
+            self.ems_1_pooler = TokenPooler(config)
+            self.ems_2_pooler = TokenPooler(config)
+            self.e_1_pooler = TokenPooler(config)
+            self.e_2_pooler = TokenPooler(config)
+
         self.dropout = nn.Dropout(classifier_dropout)
 
         self.classification_layers = None
@@ -47,16 +73,13 @@ class TemporalRelationClassification(BertPreTrainedModel):
         # self.post_init()
 
     def _get_entities_and_start_markers_indices(self, input_ids):
-        event_1_start, event_2_start = torch.tensor(
-            [(ids == self.ES_ID).nonzero().squeeze().tolist() for ids in input_ids]).T
-        return event_1_start, event_1_start + 1, event_2_start, event_2_start + 1
+        em1_s = torch.tensor([(ids == self.EMS1).nonzero().item() for ids in input_ids], device=self.device)
+        em1_e = torch.tensor([(ids == self.EME1).nonzero().item() for ids in input_ids], device=self.device)
 
-        # em1_s = torch.tensor([(ids == self.EMS1).nonzero().item() for ids in input_ids], device=self.device)
-        # entity_1 = em1_s + 1
-        #
-        # em2_s = torch.tensor([(ids == self.EMS2).nonzero().item() for ids in input_ids], device=self.device)
-        # entity_2 = em2_s + 1
-        # return em1_s, entity_1, em2_s, entity_2
+        em2_s = torch.tensor([(ids == self.EMS2).nonzero().item() for ids in input_ids], device=self.device)
+        em2_e = torch.tensor([(ids == self.EME2).nonzero().item() for ids in input_ids], device=self.device)
+
+        return em1_s, em1_e, em2_s, em2_e
 
     def forward(
             self,
@@ -102,14 +125,24 @@ class TemporalRelationClassification(BertPreTrainedModel):
 
             sequence_output = self.dropout(sequence_output)
 
-            entity_mark_1_s, entity_1, entity_mark_2_s, entity_2 = self._get_entities_and_start_markers_indices(
-                input_ids)
+            entity_mark_1_s, entity_mark_1_e, entity_mark_2_s, entity_mark_2_e = self._get_entities_and_start_markers_indices(input_ids)
 
             e1_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_1_s]
             e2_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_2_s]
 
-            e1_tensor = sequence_output[torch.arange(sequence_output.size(0)), entity_1]
-            e2_tensor = sequence_output[torch.arange(sequence_output.size(0)), entity_2]
+            e1_tensor = torch.stack(
+                [torch.mean(sentence[entity_mark_1_s[i]: entity_mark_1_e[i]], dim=0, keepdim=True) for i, sentence in
+                 enumerate(sequence_output)]).reshape(sequence_output.shape[0], -1).to(self.device)
+            e2_tensor = torch.stack(
+                [torch.mean(sentence[entity_mark_2_s[i]: entity_mark_2_e[i]], dim=0, keepdim=True) for i, sentence in
+                 enumerate(sequence_output)]).reshape(sequence_output.shape[0], -1).to(self.device)
+
+            if self.pool_tokens:
+                e1_start_mark_tensors = self.ems_1_pooler(e1_start_mark_tensors)
+                e2_start_mark_tensors = self.ems_2_pooler(e2_start_mark_tensors)
+
+                e1_tensor = self.e_1_pooler(e1_tensor)
+                e2_tensor = self.e_2_pooler(e2_tensor)
 
             if self.architecture == 'ESS':
                 e_start_markers_cat = torch.cat((e1_start_mark_tensors, e2_start_mark_tensors), 1)
