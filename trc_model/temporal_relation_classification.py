@@ -37,11 +37,15 @@ class TemporalRelationClassification(BertForSequenceClassification):
         self.EME1 = config.EME1
         self.EME2 = config.EME2
         self.architecture = config.architecture
+        self.freeze = config.freeze
         self.config = config
 
-        self.bert = BertModel.from_pretrained(config.base_lm)
+        self.bert: BertModel = BertModel.from_pretrained(config.base_lm)
         if self.bert.config.vocab_size != config.vocab_size:
             self.bert.resize_token_embeddings(config.vocab_size)
+
+        if self.freeze:
+            self.bert.encoder.layer[:self.freeze].requires_grad_(False)
 
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
