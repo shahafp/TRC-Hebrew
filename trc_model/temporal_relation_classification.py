@@ -28,53 +28,43 @@ class TemporalRelationClassification(BertForSequenceClassification):
 
     def __init__(self, config):
         super().__init__(config)
+        self.config = config
         self.num_labels = config.num_labels
-        self.special_markers = config.special_markers
-        self.pool_tokens = config.pool_tokens
-        self.ES_ID = config.ES_ID
+        self.architecture = config.architecture
         self.EMS1 = config.EMS1
         self.EMS2 = config.EMS2
         self.EME1 = config.EME1
         self.EME2 = config.EME2
-        self.architecture = config.architecture
-        self.freeze = config.freeze
-        self.config = config
 
         self.bert: BertModel = BertModel.from_pretrained(config.base_lm)
-        if self.bert.config.vocab_size != config.vocab_size:
-            self.bert.resize_token_embeddings(config.vocab_size)
-
-        if self.freeze:
-            self.bert.encoder.layer[:self.freeze].requires_grad_(False)
+        self.bert.resize_token_embeddings(config.vocab_size)
 
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
-        if config.pool_tokens:
-            self.ems_1_pooler = TokenPooler(config)
-            self.ems_2_pooler = TokenPooler(config)
-            self.e_1_pooler = TokenPooler(config)
-            self.e_2_pooler = TokenPooler(config)
-
-        self.dropout = nn.Dropout(classifier_dropout)
-
-        self.classification_layers = None
         if self.architecture == 'SEQ_CLS':
-            self.classification_layers = nn.Sequential(
-                nn.Linear(config.hidden_size, config.num_labels)
+            self.post_transformer_norm = nn.Sequential(
+                nn.Linear(config.hidden_size, config.hidden_size),
+                nn.LayerNorm(config.hidden_size),
+                nn.Dropout(classifier_dropout)
             )
-        if self.architecture == 'EMP':
-            self.e_1_linear = nn.Linear(config.hidden_size * 2, config.hidden_size)
-            self.e_2_linear = nn.Linear(config.hidden_size * 2, config.hidden_size)
+            self.classification_layer = nn.Linear(config.hidden_size, config.num_labels)
 
-        if self.architecture in ['ESS', 'EF', 'EMP']:
-            self.classification_layers = nn.Sequential(
-                nn.Linear(config.hidden_size * 2, config.hidden_size),
-                nn.Linear(config.hidden_size, config.num_labels)
+        if self.architecture in ['EMP', 'ESS']:
+            self.post_transformer_norm_1 = nn.Sequential(
+                nn.Linear(config.hidden_size, config.hidden_size),
+                nn.LayerNorm(config.hidden_size),
+                nn.Dropout(classifier_dropout)
+
             )
 
-        # Initialize weights and apply final processing
-        # self.post_init()
+            self.post_transformer_norm_2 = nn.Sequential(
+                nn.Linear(config.hidden_size, config.hidden_size),
+                nn.LayerNorm(config.hidden_size),
+                nn.Dropout(classifier_dropout)
+
+            )
+            self.classification_layer = nn.Linear(config.hidden_size * 2, config.num_labels)
 
     def _get_entities_and_start_markers_indices(self, input_ids):
         em1_s = torch.tensor([(ids == self.EMS1).nonzero().item() for ids in input_ids], device=self.device)
@@ -84,6 +74,12 @@ class TemporalRelationClassification(BertForSequenceClassification):
         em2_e = torch.tensor([(ids == self.EME2).nonzero().item() for ids in input_ids], device=self.device)
 
         return em1_s, em1_e, em2_s, em2_e
+
+    def _max_pool_entity(self, mark_start, mark_end, sequence_output):
+        return torch.stack(
+            [torch.max(sentence[mark_start[i] + 1: mark_end[i]], dim=0, keepdim=True)[0] for i, sentence
+             in
+             enumerate(sequence_output)]).reshape(sequence_output.shape[0], -1).to(self.device)
 
     def forward(
             self,
@@ -118,50 +114,36 @@ class TemporalRelationClassification(BertForSequenceClassification):
             return_dict=return_dict,
         )
 
-        logits = None
         if self.architecture == 'SEQ_CLS':
             pooled_output = outputs[1]
+            relation_representation = self.post_transformer_norm(pooled_output)
 
-            pooled_output = self.dropout(pooled_output)
-            logits = self.classification_layers(pooled_output)
+
         else:
             sequence_output = outputs[0]
 
-            sequence_output = self.dropout(sequence_output)
-
-            entity_mark_1_s, entity_mark_1_e, entity_mark_2_s, entity_mark_2_e = self._get_entities_and_start_markers_indices(input_ids)
-
-            e1_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_1_s]
-            e2_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_2_s]
-
-            e1_tensor = torch.stack(
-                [torch.max(sentence[entity_mark_1_s[i] + 1: entity_mark_1_e[i]], dim=0, keepdim=True)[0] for i, sentence in
-                 enumerate(sequence_output)]).reshape(sequence_output.shape[0], -1).to(self.device)
-            e2_tensor = torch.stack(
-                [torch.max(sentence[entity_mark_2_s[i] + 1: entity_mark_2_e[i]], dim=0, keepdim=True)[0] for i, sentence in
-                 enumerate(sequence_output)]).reshape(sequence_output.shape[0], -1).to(self.device)
-
-            if self.pool_tokens:
-                e1_start_mark_tensors = self.ems_1_pooler(e1_start_mark_tensors)
-                e2_start_mark_tensors = self.ems_2_pooler(e2_start_mark_tensors)
-
-                e1_tensor = self.e_1_pooler(e1_tensor)
-                e2_tensor = self.e_2_pooler(e2_tensor)
-
-            if self.architecture == 'ESS':
-                e_start_markers_cat = torch.cat((e1_start_mark_tensors, e2_start_mark_tensors), 1)
-                logits = self.classification_layers(e_start_markers_cat)
-
-            if self.architecture == 'EF':
-                events_cat = torch.cat((e1_tensor, e2_tensor), 1)
-                logits = self.classification_layers(events_cat)
+            entity_mark_1_s, entity_mark_1_e, entity_mark_2_s, entity_mark_2_e = self._get_entities_and_start_markers_indices(
+                input_ids)
 
             if self.architecture == 'EMP':
-                e1_and_start_mark = self.e_1_linear(torch.cat((e1_start_mark_tensors, e1_tensor), 1))
-                e2_and_start_mark = self.e_2_linear(torch.cat((e2_start_mark_tensors, e2_tensor), 1))
-                both_e_cat = torch.cat((e1_and_start_mark, e2_and_start_mark), 1)
-                logits = self.classification_layers(both_e_cat)
+                entity_1_max_pool = self._max_pool_entity(entity_mark_1_s, entity_mark_1_e, sequence_output)
+                entity_1_norm = self.post_transformer_norm_1(entity_1_max_pool)
 
+                entity_2_max_pool = self._max_pool_entity(entity_mark_2_s, entity_mark_2_e, sequence_output)
+                entity_2_norm = self.post_transformer_norm_2(entity_2_max_pool)
+
+                relation_representation = torch.cat((entity_1_norm, entity_2_norm), 1)
+
+            else:  # self.architecture == 'ESS'
+                e1_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_1_s]
+                e1_start_mark_norm = self.post_transformer_norm_1(e1_start_mark_tensors)
+
+                e2_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_2_s]
+                e2_start_mark_norm = self.post_transformer_norm_2(e2_start_mark_tensors)
+
+                relation_representation = torch.cat((e1_start_mark_norm, e2_start_mark_norm), 1)
+
+        logits = self.classification_layer(relation_representation)
         loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()
