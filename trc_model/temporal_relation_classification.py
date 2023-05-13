@@ -31,6 +31,7 @@ class TemporalRelationClassification(BertForSequenceClassification):
         self.config = config
         self.num_labels = config.num_labels
         self.architecture = config.architecture
+        self.class_weights = config.class_weights
         self.EMS1 = config.EMS1
         self.EMS2 = config.EMS2
         self.EME1 = config.EME1
@@ -43,26 +44,25 @@ class TemporalRelationClassification(BertForSequenceClassification):
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
         if self.architecture == 'SEQ_CLS':
-            self.post_transformer_norm = nn.Sequential(
+            self.post_transformer = nn.Sequential(
                 nn.Linear(config.hidden_size, config.hidden_size),
-                nn.LayerNorm(config.hidden_size),
                 nn.Dropout(classifier_dropout)
             )
             self.classification_layer = nn.Linear(config.hidden_size, config.num_labels)
 
         if self.architecture in ['EMP', 'ESS']:
-            self.post_transformer_norm_1 = nn.Sequential(
+            self.post_transformer_1 = nn.Sequential(
                 nn.Linear(config.hidden_size, config.hidden_size),
-                nn.LayerNorm(config.hidden_size),
                 nn.Dropout(classifier_dropout)
-
             )
 
-            self.post_transformer_norm_2 = nn.Sequential(
+            self.post_transformer_2 = nn.Sequential(
                 nn.Linear(config.hidden_size, config.hidden_size),
-                nn.LayerNorm(config.hidden_size),
                 nn.Dropout(classifier_dropout)
-
+            )
+            self.relation_representation = nn.Sequential(
+                nn.Linear(config.hidden_size * 2, config.hidden_size * 2),
+                nn.Dropout(classifier_dropout)
             )
             self.classification_layer = nn.Linear(config.hidden_size * 2, config.num_labels)
 
@@ -116,7 +116,7 @@ class TemporalRelationClassification(BertForSequenceClassification):
 
         if self.architecture == 'SEQ_CLS':
             pooled_output = outputs[1]
-            relation_representation = self.post_transformer_norm(pooled_output)
+            relation_representation = self.post_transformer(pooled_output)
 
 
         else:
@@ -127,26 +127,27 @@ class TemporalRelationClassification(BertForSequenceClassification):
 
             if self.architecture == 'EMP':
                 entity_1_max_pool = self._max_pool_entity(entity_mark_1_s, entity_mark_1_e, sequence_output)
-                entity_1_norm = self.post_transformer_norm_1(entity_1_max_pool)
+                entity_1_norm = self.post_transformer_1(entity_1_max_pool)
 
                 entity_2_max_pool = self._max_pool_entity(entity_mark_2_s, entity_mark_2_e, sequence_output)
-                entity_2_norm = self.post_transformer_norm_2(entity_2_max_pool)
+                entity_2_norm = self.post_transformer_2(entity_2_max_pool)
 
-                relation_representation = torch.cat((entity_1_norm, entity_2_norm), 1)
+                relation_representation = self.relation_representation(torch.cat((entity_1_norm, entity_2_norm), 1))
+
 
             else:  # self.architecture == 'ESS'
                 e1_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_1_s]
-                e1_start_mark_norm = self.post_transformer_norm_1(e1_start_mark_tensors)
+                e1_start_mark_norm = self.post_transformer_1(e1_start_mark_tensors)
 
                 e2_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_2_s]
-                e2_start_mark_norm = self.post_transformer_norm_2(e2_start_mark_tensors)
+                e2_start_mark_norm = self.post_transformer_2(e2_start_mark_tensors)
 
-                relation_representation = torch.cat((e1_start_mark_norm, e2_start_mark_norm), 1)
+                relation_representation = self.relation_representation(torch.cat((e1_start_mark_norm, e2_start_mark_norm), 1))
 
         logits = self.classification_layer(relation_representation)
         loss = None
         if labels is not None:
-            loss_fct = CrossEntropyLoss()
+            loss_fct = CrossEntropyLoss(weight=torch.tensor(self.class_weights, device=self.device))
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
         if not return_dict:
