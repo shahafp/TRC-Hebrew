@@ -61,10 +61,10 @@ class TemporalRelationClassification(BertForSequenceClassification):
                 nn.Dropout(classifier_dropout)
             )
             self.relation_representation = nn.Sequential(
-                nn.Linear(config.hidden_size * 2, config.hidden_size * 2),
+                nn.Linear(config.hidden_size * 2, config.hidden_size),
                 nn.Dropout(classifier_dropout)
             )
-            self.classification_layer = nn.Linear(config.hidden_size * 2, config.num_labels)
+            self.classification_layer = nn.Linear(config.hidden_size, config.num_labels)
 
     def _get_entities_and_start_markers_indices(self, input_ids):
         em1_s = torch.tensor([(ids == self.EMS1).nonzero().item() for ids in input_ids], device=self.device)
@@ -142,7 +142,8 @@ class TemporalRelationClassification(BertForSequenceClassification):
                 e2_start_mark_tensors = sequence_output[torch.arange(sequence_output.size(0)), entity_mark_2_s]
                 e2_start_mark_norm = self.post_transformer_2(e2_start_mark_tensors)
 
-                relation_representation = self.relation_representation(torch.cat((e1_start_mark_norm, e2_start_mark_norm), 1))
+                relation_representation = self.relation_representation(
+                    torch.cat((e1_start_mark_norm, e2_start_mark_norm), 1))
 
         logits = self.classification_layer(relation_representation)
         loss = None
