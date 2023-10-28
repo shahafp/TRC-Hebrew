@@ -88,45 +88,51 @@ class OntologyDataCreator:
                 windows_for_tagging.append(self.replace_event_tag_to_hebrew_tag(event_tuple, window))
         return windows_for_tagging
 
+    def flow(self, lines, events):
+        ontology_text = self.create_ontology_data(lines, events)
+        ontology_text_windows = self.split_to_windows(ontology_text)
+        events_in_windows = self.get_all_events_in_window(ontology_text_windows)
+        windows_for_taggers = self.create_windows_for_tagging(events_in_windows, ontology_text_windows)
+        return windows_for_taggers
+
 
 ontology_data_creator = OntologyDataCreator()
 
-if __name__ == '__main__':
-    short_text = """Once upon a time in a peaceful village, there lived a kind-hearted blacksmith.
-He crafted exquisite pieces of jewelry and shared them with the villagers.
-One day, a mysterious traveler arrived and requested a special pendant.
-The blacksmith worked tirelessly to create the most beautiful pendant he had ever made.
-When he presented it to the traveler, the traveler smiled with gratitude and thanked the blacksmith before departing into the unknown.
-The village celebrated the blacksmith's talent and wished for his happiness.
-And so, the blacksmith continued to bless the village with his creations for years to come."""
-    lines = short_text.split('\n')
-
-    # Define the events with their corresponding lines and spans
-    event_data = [
-        ("Once", 0, 0), ("lived", 0, 3), ("crafted", 1, 3),
-        ("shared", 1, 9), ("arrived", 2, 4), ("worked", 3, 3),
-        ("create", 3, 7), ("made", 3, 12), ("presented", 4, 3),
-        ("smiled", 4, 6), ("thanked", 4, 12), ("departing", 4, 4),
-        ("celebrated", 5, 4), ("wished", 5, 7), ("continued", 6, 5),
-        ("bless", 6, 10)
-    ]
-
-    events = []
-
-    for word, line_num, span_start in event_data:
-        start = lines[line_num].find(word, span_start)
-        end = start + len(word)
-        event = Event(word=word, start=start, end=end, row=line_num)
-        events.append(event)
-
-    # Print the list of events with line spans
-    for event in events:
-        print(f"Word: {event.word}, Start: {event.start}, End: {event.end}, Line: {event.row}")
-
-    ontology_text = ontology_data_creator.create_ontology_data(lines, events)
-    original_text = '\n'.join(lines)
-
-    text_windows = ontology_data_creator.split_to_windows(short_text)
-    ontology_text_windows = ontology_data_creator.split_to_windows(ontology_text)
-    events_in_windows = ontology_data_creator.get_all_events_in_window(ontology_text_windows)
-    windows_for_taggers = ontology_data_creator.create_windows_for_tagging(events_in_windows, ontology_text_windows)
+# if __name__ == '__main__':
+#     short_text = """Once upon a time in a peaceful village, there lived a kind-hearted blacksmith.
+# He crafted exquisite pieces of jewelry and shared them with the villagers.
+# One day, a mysterious traveler arrived and requested a special pendant.
+# The blacksmith worked tirelessly to create the most beautiful pendant he had ever made.
+# When he presented it to the traveler, the traveler smiled with gratitude and thanked the blacksmith before departing into the unknown.
+# The village celebrated the blacksmith's talent and wished for his happiness.
+# And so, the blacksmith continued to bless the village with his creations for years to come."""
+#     lines = short_text.split('\n')
+#
+#     # Define the events with their corresponding lines and spans
+#     event_data = [
+#         ("Once", 0, 0), ("lived", 0, 3), ("crafted", 1, 3),
+#         ("shared", 1, 9), ("arrived", 2, 4), ("worked", 3, 3),
+#         ("create", 3, 7), ("made", 3, 12), ("presented", 4, 3),
+#         ("smiled", 4, 6), ("thanked", 4, 12), ("departing", 4, 4),
+#         ("celebrated", 5, 4), ("wished", 5, 7), ("continued", 6, 5),
+#         ("bless", 6, 10)
+#     ]
+#
+#     events = []
+#
+#     for word, line_num, span_start in event_data:
+#         start = lines[line_num].find(word, span_start)
+#         end = start + len(word)
+#         event = Event(word=word, start=start, end=end, row=line_num)
+#         events.append(event)
+#
+#     # Print the list of events with line spans
+#     for event in events:
+#         print(f"Word: {event.word}, Start: {event.start}, End: {event.end}, Line: {event.row}")
+#
+#     ontology_text = ontology_data_creator.create_ontology_data(lines, events)
+#
+#     text_windows = ontology_data_creator.split_to_windows(short_text)
+#     ontology_text_windows = ontology_data_creator.split_to_windows(ontology_text)
+#     events_in_windows = ontology_data_creator.get_all_events_in_window(ontology_text_windows)
+#     windows_for_taggers = ontology_data_creator.create_windows_for_tagging(events_in_windows, ontology_text_windows)
