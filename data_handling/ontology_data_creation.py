@@ -1,12 +1,17 @@
 import re
 
-from pydantic import BaseModel
 from itertools import combinations
 
 from collections import defaultdict
 
 
-class Event(BaseModel):
+class Event:
+    def __init__(self, start: int, end: int, word: str, row: int):
+        self.start = start
+        self.end = end
+        self.word = word
+        self.row = row
+
     start: int
     end: int
     word: str
@@ -35,12 +40,11 @@ class OntologyDataCreator:
 
     def create_ontology_data(self, lines: list[str], events: list[Event]) -> str:
         # Step 1: Map all the actions to their lines
-        event_to_line = map_events_to_lines(events)
+        event_to_line = self.map_events_to_lines(events)
         # Step 2: Pad each event with special sign
-        res = pad_events_in_line(lines, event_to_line)
+        res = self.pad_events_in_line(lines, event_to_line)
         # Step 3: Concat all the line to one long text
-        ontology_text = '\n'.join(res)
-        return ontology_text
+        return '\n'.join(res)
 
     def split_to_windows(self, text: str) -> list[list]:
         # Split the text by periods to get a list of rows
