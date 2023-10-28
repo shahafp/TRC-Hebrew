@@ -13,82 +13,79 @@ class Event(BaseModel):
     row: int
 
 
-def map_events_to_lines(events: list[Event]):
-    event_to_line = defaultdict(list)
-    for event in events:
-        event_to_line[event.row].append(event)
-    return event_to_line
+class OntologyDataCreator:
+    def map_events_to_lines(self, events: list[Event]):
+        event_to_line = defaultdict(list)
+        for event in events:
+            event_to_line[event.row].append(event)
+        return event_to_line
+
+    def pad_events_in_line(self, lines: list[str], event_to_line: dict[str, list[Event]]) -> list[str]:
+        padded_lines = []
+        last_span = Event(start=0, end=0, word='', row=-1)
+        for i, line in enumerate(lines):
+            pad_line = ''
+            for event in event_to_line[i]:
+                pad_line += line[last_span.end:event.start] + '[EVENT] ' + line[event.start:event.end] + ' [/EVENT]'
+                last_span = event
+            if last_span.end < len(line):
+                pad_line += line[last_span.end:]
+            padded_lines.append(pad_line)
+        return padded_lines
+
+    def create_ontology_data(self, lines: list[str], events: list[Event]) -> str:
+        # Step 1: Map all the actions to their lines
+        event_to_line = map_events_to_lines(events)
+        # Step 2: Pad each event with special sign
+        res = pad_events_in_line(lines, event_to_line)
+        # Step 3: Concat all the line to one long text
+        ontology_text = '\n'.join(res)
+        return ontology_text
+
+    def split_to_windows(self, text: str) -> list[list]:
+        # Split the text by periods to get a list of rows
+        rows = text.split('.')
+
+        # Initialize a list to store the windows
+        windows = []
+
+        # Create windows of size 2
+        for i in range(len(rows) - 1):
+            window = [rows[i], rows[i + 1]]
+            if window[-1]:
+                windows.append(window)
+
+        return windows
+
+    def replace_event_tag_to_hebrew_tag(self, event_tuple, event_window) -> str:
+        cur_window = '\n'.join(event_window)
+        for i, event in enumerate(event_tuple):
+            cur_window = cur_window.replace(f'[EVENT]{event.word}[/EVENT]', f'[e{i + 1}]{event.word}[/e{i + 1}]')
+        # Replace the event tag with the Hebrew tag
+        cur_window = cur_window.replace('[EVENT]', '').replace('[/EVENT]', '')
+        cur_window = re.sub(r'\s+', ' ', cur_window)
+        cur_window = cur_window.replace('[e1]', '[א1]').replace('[/e1]', '[/א1]')
+        cur_window = cur_window.replace('[e2]', '[א2]').replace('[/e2]', '[/א2]')
+        return cur_window
+
+    def get_all_events_in_window(self, event_windows):
+        events_in_window = {}
+        for i, window in enumerate(event_windows):
+            events = re.finditer(r'\[EVENT\]([\s\S]*?)\[/EVENT\]', '\n'.join(window))
+            events = [Event(start=event.start(), end=event.end(), word=event.group(1), row=i) for event in events]
+            permutation_events = list(combinations(events, 2))
+            events_in_window[i] = permutation_events
+        return events_in_window
+
+    def create_windows_for_tagging(self, events_to_windows: dict, event_windows: list):
+        windows_for_tagging = []
+        for i, window in enumerate(event_windows):
+            for event_tuple in events_to_windows[i]:
+                windows_for_tagging.append(self.replace_event_tag_to_hebrew_tag(event_tuple, window))
+        return windows_for_tagging
 
 
-def pad_events_in_line(lines: list[str], event_to_line: dict[str, list[Event]]) -> list[str]:
-    padded_lines = []
-    last_span = Event(start=0, end=0, word='', row=-1)
-    for i, line in enumerate(lines):
-        pad_line = ''
-        for event in event_to_line[i]:
-            pad_line += line[last_span.end:event.start] + '[EVENT] ' + line[event.start:event.end] + ' [/EVENT]'
-            last_span = event
-        if last_span.end < len(line):
-            pad_line += line[last_span.end:]
-        padded_lines.append(pad_line)
-    return padded_lines
-
-
-def create_ontology_data(lines: list[str], events: list[Event]) -> str:
-    # Step 1: Map all the actions to their lines
-    event_to_line = map_events_to_lines(events)
-    # Step 2: Pad each event with special sign
-    res = pad_events_in_line(lines, event_to_line)
-    # Step 3: Concat all the line to one long text
-    ontology_text = '\n'.join(res)
-    return ontology_text
-
-
-def split_to_windows(text: str) -> list[list]:
-    # Split the text by periods to get a list of rows
-    rows = text.split('.')
-
-    # Initialize a list to store the windows
-    windows = []
-
-    # Create windows of size 2
-    for i in range(len(rows) - 1):
-        window = [rows[i], rows[i + 1]]
-        if window[-1]:
-            windows.append(window)
-
-    return windows
-
-
-def replace_event_tag_to_hebrew_tag(event_tuple, event_window) -> str:
-    cur_window = '\n'.join(event_window)
-    for i, event in enumerate(event_tuple):
-        cur_window = cur_window.replace(f'[EVENT]{event.word}[/EVENT]', f'[e{i + 1}]{event.word}[/e{i + 1}]')
-    # Replace the event tag with the Hebrew tag
-    cur_window = cur_window.replace('[EVENT]', '').replace('[/EVENT]', '')
-    cur_window = re.sub(r'\s+', ' ', cur_window)
-    cur_window = cur_window.replace('[e1]', '[א1]').replace('[/e1]', '[/א1]')
-    cur_window = cur_window.replace('[e2]', '[א2]').replace('[/e2]', '[/א2]')
-    return cur_window
-
-
-def get_all_events_in_window(event_windows):
-    events_in_window = {}
-    for i, window in enumerate(event_windows):
-        events = re.finditer(r'\[EVENT\]([\s\S]*?)\[/EVENT\]', '\n'.join(window))
-        events = [Event(start=event.start(), end=event.end(), word=event.group(1), row=i) for event in events]
-        permutation_events = list(combinations(events, 2))
-        events_in_window[i] = permutation_events
-    return events_in_window
-
-
-def create_windows_for_tagging(events_to_windows: dict, event_windows: list):
-    windows_for_tagging = []
-    for i, window in enumerate(event_windows):
-        for event_tuple in events_to_windows[i]:
-            windows_for_tagging.append(replace_event_tag_to_hebrew_tag(event_tuple, window))
-    return windows_for_tagging
-
+ontology_data_creator = OntologyDataCreator()
 
 if __name__ == '__main__':
     short_text = """Once upon a time in a peaceful village, there lived a kind-hearted blacksmith.
@@ -122,13 +119,10 @@ And so, the blacksmith continued to bless the village with his creations for yea
     for event in events:
         print(f"Word: {event.word}, Start: {event.start}, End: {event.end}, Line: {event.row}")
 
-    ontology_text = create_ontology_data(lines, events)
+    ontology_text = ontology_data_creator.create_ontology_data(lines, events)
     original_text = '\n'.join(lines)
 
-    text_windows = split_to_windows(short_text)
-    ontology_text_windows = split_to_windows(ontology_text)
-    events_in_windows = get_all_events_in_window(ontology_text_windows)
-    windows_for_taggers = create_windows_for_tagging(events_in_windows, ontology_text_windows)
-
-    # Get unique values from a patient id column
-    unique_values = df['id'].unique()
+    text_windows = ontology_data_creator.split_to_windows(short_text)
+    ontology_text_windows = ontology_data_creator.split_to_windows(ontology_text)
+    events_in_windows = ontology_data_creator.get_all_events_in_window(ontology_text_windows)
+    windows_for_taggers = ontology_data_creator.create_windows_for_tagging(events_in_windows, ontology_text_windows)
